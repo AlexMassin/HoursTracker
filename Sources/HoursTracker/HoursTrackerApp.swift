@@ -28,28 +28,88 @@ struct HoursTrackerApp: App {
 struct MenuBarLabel: View {
     @EnvironmentObject var store: Store
 
-    /// Fits "99:59:59" in the menu-bar monospaced-digit face so the status-item
-    /// pill width stays fixed as seconds (and hour digits) change.
-    private static let timeSlotMinWidth: CGFloat = {
-        let size = NSFont.menuBarFont(ofSize: 0).pointSize
-        let font = NSFont.monospacedDigitSystemFont(ofSize: size, weight: .regular)
-        return ceil(("99:59:59" as NSString).size(withAttributes: [.font: font]).width)
+    /// Menu-bar point size; used for both the measured slot and the Text font so
+    /// SwiftUI/AppKit agree on advance widths.
+    private static let menuBarPointSize: CGFloat = NSFont.menuBarFont(ofSize: 0).pointSize
+
+    /// Fully monospaced face (fixed advance for every glyph, not just digits).
+    private static let monoFont: Font = .system(size: menuBarPointSize, weight: .regular, design: .monospaced)
+
+    private static let monoNSFont: NSFont = .monospacedSystemFont(ofSize: menuBarPointSize, weight: .regular)
+
+    /// Explicit width of the padded time string "99:59:59" in `monoNSFont`.
+    private static let timeSlotWidth: CGFloat = {
+        ceil(("99:59:59" as NSString).size(withAttributes: [.font: monoNSFont]).width)
+    }()
+
+    /// Icon + small gap + time slot. Locked onto NSStatusItem.length while running
+    /// because MenuBarExtra often ignores SwiftUI `.frame` for status-item sizing.
+    fileprivate static let runningStatusLength: CGFloat = {
+        // SF Symbol in the menu bar is roughly the menu-bar font size; +10 for
+        // image/title padding that AppKit inserts between image and title.
+        ceil(menuBarPointSize + 10 + timeSlotWidth)
     }()
 
     var body: some View {
-        // Menu bar labels only honour Image + Text; keep it simple.
+        // Menu bar labels only honour Image + Text as direct label children;
+        // do not wrap them in Group/HStack or AppKit will not pick up both.
         if store.isRunning {
             Image(systemName: "timer")
                 .accessibilityLabel("HoursTracker")
-            Text(Fmt.hms(store.currentElapsed))
+            Text(Fmt.hmsPadded(store.currentElapsed))
+                .font(Self.monoFont)
                 .monospacedDigit()
-                .frame(minWidth: Self.timeSlotMinWidth, alignment: .center)
+                .frame(width: Self.timeSlotWidth, alignment: .center)
+                .fixedSize(horizontal: true, vertical: false)
                 .accessibilityValue("Tracking \(store.runningProject?.name ?? "a project"), \(Fmt.spoken(store.currentElapsed))")
+                .onAppear { MenuBarStatusItemLock.sync(isRunning: true) }
+                // Re-assert length every tick: SwiftUI may reset NSStatusItem.length
+                // when the title string updates.
+                .onChange(of: store.currentElapsed) { _ in
+                    MenuBarStatusItemLock.sync(isRunning: true)
+                }
         } else {
             Image(systemName: "clock")
                 .accessibilityLabel("HoursTracker")
                 .accessibilityValue("Not tracking")
+                .onAppear { MenuBarStatusItemLock.sync(isRunning: false) }
         }
+    }
+}
+
+/// Pins the MenuBarExtra `NSStatusItem` to a constant length while the timer runs
+/// so the menu-bar pill cannot shift left/right as digits change.
+enum MenuBarStatusItemLock {
+    static func sync(isRunning: Bool) {
+        guard let item = findStatusItem() else { return }
+        if isRunning {
+            item.length = MenuBarLabel.runningStatusLength
+        } else {
+            item.length = NSStatusItem.variableLength
+        }
+    }
+
+    private static func findStatusItem() -> NSStatusItem? {
+        for w in NSApp.windows {
+            if let button = findStatusButton(w.contentView) {
+                if let item = button.value(forKey: "statusItem") as? NSStatusItem {
+                    return item
+                }
+                if let item = button.value(forKey: "_statusItem") as? NSStatusItem {
+                    return item
+                }
+            }
+        }
+        return nil
+    }
+
+    private static func findStatusButton(_ v: NSView?) -> NSStatusBarButton? {
+        guard let v else { return nil }
+        if let b = v as? NSStatusBarButton { return b }
+        for s in v.subviews {
+            if let b = findStatusButton(s) { return b }
+        }
+        return nil
     }
 }
 

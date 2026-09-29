@@ -34,10 +34,17 @@ struct Totals {
 }
 
 enum Fmt {
-    /// "1:24:07" (always shows hours so width is stable)
+    /// "1:24:07" (always shows hours so width is stable in in-app UI)
     static func hms(_ t: TimeInterval) -> String {
         let s = max(0, Int(t))
         return String(format: "%d:%02d:%02d", s / 3600, (s / 60) % 60, s % 60)
+    }
+
+    /// Menu bar: always zero-padded "00:00:00" (fixed character count) so the
+    /// status-item title cannot change width as hours/minutes/seconds tick.
+    static func hmsPadded(_ t: TimeInterval) -> String {
+        let s = max(0, Int(t))
+        return String(format: "%02d:%02d:%02d", s / 3600, (s / 60) % 60, s % 60)
     }
 
     /// "142:10"
