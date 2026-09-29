@@ -44,6 +44,13 @@ rm -rf "$APP"
 mkdir -p "$APP/Contents/MacOS" "$APP/Contents/Resources"
 cp "$BIN_DIR/$APP_NAME" "$APP/Contents/MacOS/$APP_NAME"
 
+ICNS="Resources/HoursTracker.icns"
+if [ ! -f "$ICNS" ]; then
+    echo "error: missing $ICNS (run iconutil -c icns on the Designer Bot iconset)" >&2
+    exit 1
+fi
+cp "$ICNS" "$APP/Contents/Resources/HoursTracker.icns"
+
 # Some SwiftPM/toolchain combos record the deployment target as the SDK version in
 # LC_BUILD_VERSION. AppKit/SwiftUI use that "linked SDK" to decide whether to adopt the macOS 26
 # design, so make sure it matches the SDK we actually compiled against.
@@ -67,8 +74,9 @@ cat > "$APP/Contents/Info.plist" <<PLIST
     <key>CFBundleIdentifier</key><string>$BUNDLE_ID</string>
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>$VERSION</string>
-    <key>CFBundleVersion</key><string>2</string>
+    <key>CFBundleVersion</key><string>3</string>
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
+    <key>CFBundleIconFile</key><string>HoursTracker</string>
     <key>LSMinimumSystemVersion</key><string>13.0</string>
     <key>LSUIElement</key><true/>
     <key>NSHighResolutionCapable</key><true/>
