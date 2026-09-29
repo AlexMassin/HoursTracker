@@ -28,43 +28,48 @@ struct HoursTrackerApp: App {
 struct MenuBarLabel: View {
     @EnvironmentObject var store: Store
 
-    /// Menu-bar point size; used for both the measured slot and the Text font so
+    /// Menu-bar point size; used for both the measured slot and the drawn glyphs so
     /// SwiftUI/AppKit agree on advance widths.
     private static let menuBarPointSize: CGFloat = NSFont.menuBarFont(ofSize: 0).pointSize
 
     /// Fully monospaced face (fixed advance for every glyph, not just digits).
-    private static let monoFont: Font = .system(size: menuBarPointSize, weight: .regular, design: .monospaced)
-
     private static let monoNSFont: NSFont = .monospacedSystemFont(ofSize: menuBarPointSize, weight: .regular)
 
-    /// Explicit width of the padded time string "99:59:59" in `monoNSFont`.
+    /// Explicit width of the padded time string "00:00:00" in `monoNSFont`.
     private static let timeSlotWidth: CGFloat = {
-        ceil(("99:59:59" as NSString).size(withAttributes: [.font: monoNSFont]).width)
+        ceil(("00:00:00" as NSString).size(withAttributes: [.font: monoNSFont]).width)
     }()
 
-    /// Icon + small gap + time slot. Locked onto NSStatusItem.length while running
-    /// because MenuBarExtra often ignores SwiftUI `.frame` for status-item sizing.
+    /// SF Symbol template size at menu-bar point size.
+    private static let iconWidth: CGFloat = 15
+
+    /// Gap between timer icon and time digits inside the rendered label.
+    private static let iconTextSpacing: CGFloat = 2
+
+    /// Minimal leading/trailing inset inside the template image (not AppKit chrome).
+    private static let contentPadding: CGFloat = 1
+
+    /// Fixed status-item length while running. Drawn as a single template `Image`
+    /// so MenuBarExtra cannot insert its usual image↔title / L-R padding.
+    /// Locked onto NSStatusItem.length because MenuBarExtra often ignores SwiftUI
+    /// `.frame` for status-item sizing.
     fileprivate static let runningStatusLength: CGFloat = {
-        // SF Symbol in the menu bar is roughly the menu-bar font size; +10 for
-        // image/title padding that AppKit inserts between image and title.
-        ceil(menuBarPointSize + 10 + timeSlotWidth)
+        ceil(contentPadding + iconWidth + iconTextSpacing + timeSlotWidth + contentPadding)
     }()
+
+    private static let runningImageHeight: CGFloat = ceil(menuBarPointSize + 2)
 
     var body: some View {
-        // Menu bar labels only honour Image + Text as direct label children;
-        // do not wrap them in Group/HStack or AppKit will not pick up both.
+        // Idle: stock SF Symbol. Running: one template image (icon + time) so we
+        // control horizontal spacing; MenuBarExtra's Image+Text path adds excess
+        // grey on both sides of the pill.
         if store.isRunning {
-            Image(systemName: "timer")
+            Image(nsImage: Self.runningImage(elapsed: store.currentElapsed))
                 .accessibilityLabel("HoursTracker")
-            Text(Fmt.hmsPadded(store.currentElapsed))
-                .font(Self.monoFont)
-                .monospacedDigit()
-                .frame(width: Self.timeSlotWidth, alignment: .center)
-                .fixedSize(horizontal: true, vertical: false)
                 .accessibilityValue("Tracking \(store.runningProject?.name ?? "a project"), \(Fmt.spoken(store.currentElapsed))")
                 .onAppear { MenuBarStatusItemLock.sync(isRunning: true) }
                 // Re-assert length every tick: SwiftUI may reset NSStatusItem.length
-                // when the title string updates.
+                // when the label image updates.
                 .onChange(of: store.currentElapsed) { _ in
                     MenuBarStatusItemLock.sync(isRunning: true)
                 }
@@ -74,6 +79,45 @@ struct MenuBarLabel: View {
                 .accessibilityValue("Not tracking")
                 .onAppear { MenuBarStatusItemLock.sync(isRunning: false) }
         }
+    }
+
+    /// Black-on-clear template: icon + fixed-width padded time, tight H-spacing.
+    private static func runningImage(elapsed: TimeInterval) -> NSImage {
+        let text = Fmt.hmsPadded(elapsed)
+        let size = NSSize(width: runningStatusLength, height: runningImageHeight)
+        let image = NSImage(size: size, flipped: false) { rect in
+            NSColor.black.setFill()
+
+            let symbolConfig = NSImage.SymbolConfiguration(pointSize: menuBarPointSize, weight: .regular)
+                .applying(NSImage.SymbolConfiguration(paletteColors: [.black]))
+            if let base = NSImage(systemSymbolName: "timer", accessibilityDescription: nil),
+               let icon = base.withSymbolConfiguration(symbolConfig) {
+                let iconRect = NSRect(
+                    x: contentPadding,
+                    y: ((rect.height - iconWidth) / 2).rounded(.down),
+                    width: iconWidth,
+                    height: iconWidth
+                )
+                // Black mask so `isTemplate = true` tints correctly in the menu bar.
+                icon.draw(in: iconRect, from: .zero, operation: .sourceOver, fraction: 1.0)
+            }
+
+            let attrs: [NSAttributedString.Key: Any] = [
+                .font: monoNSFont,
+                .foregroundColor: NSColor.black
+            ]
+            let textSize = (text as NSString).size(withAttributes: attrs)
+            // Center the (fixed-advance) string inside the reserved time slot.
+            let slotX = contentPadding + iconWidth + iconTextSpacing
+            let textOrigin = NSPoint(
+                x: slotX + ((timeSlotWidth - textSize.width) / 2).rounded(.down),
+                y: ((rect.height - textSize.height) / 2).rounded(.down)
+            )
+            (text as NSString).draw(at: textOrigin, withAttributes: attrs)
+            return true
+        }
+        image.isTemplate = true
+        return image
     }
 }
 
