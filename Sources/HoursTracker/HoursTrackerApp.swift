@@ -28,6 +28,14 @@ struct HoursTrackerApp: App {
 struct MenuBarLabel: View {
     @EnvironmentObject var store: Store
 
+    /// Fits "99:59:59" in the menu-bar monospaced-digit face so the status-item
+    /// pill width stays fixed as seconds (and hour digits) change.
+    private static let timeSlotMinWidth: CGFloat = {
+        let size = NSFont.menuBarFont(ofSize: 0).pointSize
+        let font = NSFont.monospacedDigitSystemFont(ofSize: size, weight: .regular)
+        return ceil(("99:59:59" as NSString).size(withAttributes: [.font: font]).width)
+    }()
+
     var body: some View {
         // Menu bar labels only honour Image + Text; keep it simple.
         if store.isRunning {
@@ -35,6 +43,7 @@ struct MenuBarLabel: View {
                 .accessibilityLabel("HoursTracker")
             Text(Fmt.hms(store.currentElapsed))
                 .monospacedDigit()
+                .frame(minWidth: Self.timeSlotMinWidth, alignment: .center)
                 .accessibilityValue("Tracking \(store.runningProject?.name ?? "a project"), \(Fmt.spoken(store.currentElapsed))")
         } else {
             Image(systemName: "clock")
