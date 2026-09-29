@@ -109,11 +109,21 @@ struct MainPage: View {
     @EnvironmentObject var ui: UIState
 
     var body: some View {
+        // Hero + projects fill; Spacer absorbs leftover height so the Manage/gear
+        // footer stays flush to the bottom of the popover (e.g. after a taller
+        // subpage left the panel oversized). safeAreaInset keeps it pinned while
+        // the project list scrolls above.
         VStack(alignment: .leading, spacing: HT.Space.m) {
             HeroCard()
             ProjectsSection()
-            Divider()
-            FooterBar()
+            Spacer(minLength: 0)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .safeAreaInset(edge: .bottom, spacing: HT.Space.m) {
+            VStack(alignment: .leading, spacing: HT.Space.m) {
+                Divider()
+                FooterBar()
+            }
         }
     }
 }
