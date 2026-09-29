@@ -1,0 +1,47 @@
+# SwiftPM / Xcode build products
+.build/
+build/
+DerivedData/
+*.app
+*.dSYM
+*.zip
+
+# Xcode user state
+xcuserdata/
+*.xcuserstate
+*.xccheckout
+*.xcscmblueprint
+*.xcodeproj/project.xcworkspace/xcuserdata/
+*.xcworkspace/xcuserdata/
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+
+# Local app data / logs (never commit tracking data)
+**/Application Support/HoursTracker/
+Library/Application Support/HoursTracker/
+data.json
+*.corrupt-*.json
+*.log
+logs/
+*.out
+
+# Secrets / env
+.env
+.env.*
+*.pem
+*.p12
+*.key
+credentials*
+secrets/
