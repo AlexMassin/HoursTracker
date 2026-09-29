@@ -549,18 +549,17 @@ struct GearMenu: View {
         Menu {
             Button("Export CSV…") { ui.openExport() }
                 .keyboardShortcut("e")
-            Button("Export This Week…") { store.exportCSV(thisWeekOnly: true) }
             Divider()
             Toggle("Launch at Login", isOn: Binding(
                 get: { store.launchAtLogin },
                 set: { store.setLaunchAtLogin($0) }
             ))
             Divider()
-            Button("About HoursTracker") {
+            Button("About Hours Tracker") {
                 NSApp.activate(ignoringOtherApps: true)
                 NSApp.orderFrontStandardAboutPanel(nil)
             }
-            Button("Quit HoursTracker") { NSApp.terminate(nil) }
+            Button("Quit Hours Tracker") { NSApp.terminate(nil) }
                 .keyboardShortcut("q")
         } label: {
             Image(systemName: "gearshape")

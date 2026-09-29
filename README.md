@@ -1,4 +1,4 @@
-# HoursTracker
+# Hours Tracker
 
 Native macOS menu bar app for tracking work hours per project.
 

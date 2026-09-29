@@ -65,7 +65,7 @@ struct MenuBarLabel: View {
         // grey on both sides of the pill.
         if store.isRunning {
             Image(nsImage: Self.runningImage(elapsed: store.currentElapsed))
-                .accessibilityLabel("HoursTracker")
+                .accessibilityLabel("Hours Tracker")
                 .accessibilityValue("Tracking \(store.runningProject?.name ?? "a project"), \(Fmt.spoken(store.currentElapsed))")
                 .onAppear { MenuBarStatusItemLock.sync(isRunning: true) }
                 // Re-assert length every tick: SwiftUI may reset NSStatusItem.length
@@ -75,7 +75,7 @@ struct MenuBarLabel: View {
                 }
         } else {
             Image(systemName: "clock")
-                .accessibilityLabel("HoursTracker")
+                .accessibilityLabel("Hours Tracker")
                 .accessibilityValue("Not tracking")
                 .onAppear { MenuBarStatusItemLock.sync(isRunning: false) }
         }
