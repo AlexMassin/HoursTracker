@@ -14,7 +14,7 @@ Built with SwiftUI (`MenuBarExtra`). Lives only in the menu bar — no Dock icon
 - **Projects** — colour dots, Today / Week / All totals, play/stop controls; click to select, double-click to start, right-click for Start / Rename / Color / Show Sessions / Delete
 - **Quick add** — `+` or ⌘N, duplicate-name check, Return to add, Esc to cancel
 - **Manage Projects** (⌘,) — rename, delete with confirmation, sessions grouped by day
-- **Export CSV** (⌘E) — full history or this week only (`project,start,end,duration_hours`)
+- **Export CSV** (⌘E) — in-popover date range (Today / This Week / This Month / All Time / Custom); filter by session start in local time; **Export This Week** remains a one-shot (`project,start,end,duration_hours`)
 - **Launch at Login** toggle (`SMAppService`)
 - **Persistence** — JSON in `~/Library/Application Support/HoursTracker/data.json`; a running timer resumes across quit/relaunch/reboot
 - Only one timer runs at a time (starting another project stops the current one)

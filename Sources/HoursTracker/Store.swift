@@ -259,7 +259,58 @@ final class Store: ObservableObject {
 
     // MARK: - Export
 
-    func csvString(from: Date? = nil) -> String {
+    /// Inclusive local-calendar day bounds for CSV filtering (session *start* must fall in range).
+    /// Timezone: `Calendar.current` / local.
+    struct ExportRange: Equatable {
+        var start: Date  // any time on the start day; normalized to startOfDay
+        var end: Date    // any time on the end day; inclusive through end of that day
+    }
+
+    var startOfMonth: Date {
+        Calendar.current.dateInterval(of: .month, for: now)?.start ?? startOfToday
+    }
+
+    /// Earliest session start among completed + running, if any.
+    var earliestSessionStart: Date? {
+        var dates = data.sessions.map(\.start)
+        if let r = data.running { dates.append(r.start) }
+        return dates.min()
+    }
+
+    /// Default export range: start of this month → today (local).
+    var defaultExportRange: ExportRange {
+        ExportRange(start: startOfMonth, end: now)
+    }
+
+    /// All-time bounds from data, or today→today if empty.
+    var allTimeExportRange: ExportRange {
+        let end = now
+        let start = earliestSessionStart ?? end
+        return ExportRange(start: start, end: end)
+    }
+
+    func sessionCount(in range: ExportRange) -> Int {
+        exportRows(in: range).count
+    }
+
+    /// Sessions (plus in-progress as a synthetic row) whose **start** falls on a local
+    /// calendar day in `[range.start, range.end]` inclusive.
+    func exportRows(in range: ExportRange?) -> [WorkSession] {
+        var rows = data.sessions
+        if let r = data.running {
+            rows.append(WorkSession(projectID: r.projectID, start: r.start, end: max(now, r.start)))
+        }
+        guard let range else { return rows.sorted { $0.start < $1.start } }
+        let cal = Calendar.current
+        let lower = cal.startOfDay(for: range.start)
+        let endDay = cal.startOfDay(for: range.end)
+        let upperExclusive = cal.date(byAdding: .day, value: 1, to: endDay) ?? .distantFuture
+        return rows
+            .filter { $0.start >= lower && $0.start < upperExclusive }
+            .sorted { $0.start < $1.start }
+    }
+
+    func csvString(in range: ExportRange? = nil) -> String {
         let iso = ISO8601DateFormatter()
         iso.formatOptions = [.withInternetDateTime]
         iso.timeZone = TimeZone.current
@@ -269,34 +320,42 @@ final class Store: ObservableObject {
             }
             return s
         }
-        var rows = data.sessions
-        if let r = data.running {
-            rows.append(WorkSession(projectID: r.projectID, start: r.start, end: Date()))
-        }
-        if let from { rows = rows.filter { $0.end > from } }
         var lines = ["project,start,end,duration_hours"]
-        for s in rows.sorted(by: { $0.start < $1.start }) {
+        for s in exportRows(in: range) {
             let name = project(s.projectID)?.name ?? "Unknown"
             lines.append("\(esc(name)),\(iso.string(from: s.start)),\(iso.string(from: s.end)),\(String(format: "%.4f", s.duration / 3600))")
         }
         return lines.joined(separator: "\n") + "\n"
     }
 
-    func exportCSV(thisWeekOnly: Bool = false) {
+    /// Save-panel export. Pass a range for filtered export; `thisWeekOnly` is the one-shot shortcut.
+    func exportCSV(range: ExportRange? = nil, thisWeekOnly: Bool = false) {
+        let resolved: ExportRange?
+        if thisWeekOnly {
+            resolved = ExportRange(start: startOfWeek, end: now)
+        } else {
+            resolved = range
+        }
         let panel = NSSavePanel()
         panel.title = thisWeekOnly ? "Export This Week" : "Export Hours"
         panel.allowedContentTypes = [.commaSeparatedText]
         let df = DateFormatter()
         df.dateFormat = "yyyy-MM-dd"
-        panel.nameFieldStringValue = thisWeekOnly
-            ? "hours-week-of-\(df.string(from: startOfWeek)).csv"
-            : "hours-\(df.string(from: Date())).csv"
+        if thisWeekOnly {
+            panel.nameFieldStringValue = "hours-week-of-\(df.string(from: startOfWeek)).csv"
+        } else if let resolved {
+            let a = df.string(from: Calendar.current.startOfDay(for: resolved.start))
+            let b = df.string(from: Calendar.current.startOfDay(for: resolved.end))
+            panel.nameFieldStringValue = a == b ? "hours-\(a).csv" : "hours-\(a)_to_\(b).csv"
+        } else {
+            panel.nameFieldStringValue = "hours-\(df.string(from: Date())).csv"
+        }
         panel.canCreateDirectories = true
         NSApp.activate(ignoringOtherApps: true)
         panel.level = .floating
         if panel.runModal() == .OK, let url = panel.url {
             do {
-                try csvString(from: thisWeekOnly ? startOfWeek : nil).write(to: url, atomically: true, encoding: .utf8)
+                try csvString(in: resolved).write(to: url, atomically: true, encoding: .utf8)
             } catch {
                 NSAlert(error: error).runModal()
             }

@@ -3,6 +3,7 @@ import SwiftUI
 enum Route: Hashable {
     case manage
     case sessions(UUID)
+    case export
 }
 
 /// Pending destructive action shown in the in-popover confirmation dialog.
@@ -48,6 +49,15 @@ final class UIState: ObservableObject {
         navForward = false
         path = []
         renamingID = nil
+    }
+
+    /// Open the in-popover Export CSV range panel (replaces any deeper stack).
+    func openExport() {
+        navForward = true
+        path = [.export]
+        renamingID = nil
+        isAdding = false
+        pendingDelete = nil
     }
 
     var isEditingText: Bool { textFieldFocused || isAdding || renamingID != nil }

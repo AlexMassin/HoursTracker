@@ -85,7 +85,7 @@ struct ManageView: View {
                 .foregroundStyle(.primary)
                 Spacer()
                 Button {
-                    store.exportCSV()
+                    ui.openExport()
                 } label: {
                     Label("Export CSV…", systemImage: "square.and.arrow.up")
                 }

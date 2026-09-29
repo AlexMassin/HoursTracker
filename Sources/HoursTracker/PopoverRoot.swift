@@ -19,6 +19,9 @@ struct PopoverRoot: View {
                 SessionsView(projectID: id)
                     .id(id)
                     .transition(pageTransition)
+            case .some(.export):
+                ExportRangeView()
+                    .transition(pageTransition)
             }
         }
         .padding(HT.Space.m)
@@ -81,7 +84,7 @@ private struct KeyboardShortcuts: View {
         ZStack {
             Button("New Project") { openAdd() }.keyboardShortcut("n")
             Button("Manage") { ui.path = [.manage]; ui.navForward = true }.keyboardShortcut(",")
-            Button("Export") { store.exportCSV() }.keyboardShortcut("e")
+            Button("Export") { ui.openExport() }.keyboardShortcut("e")
             Button("Quit") { NSApp.terminate(nil) }.keyboardShortcut("q")
             Button("Start/Stop") { store.toggleSelected() }
                 .keyboardShortcut(.space, modifiers: [])
@@ -540,10 +543,11 @@ struct FooterBar: View {
 
 struct GearMenu: View {
     @EnvironmentObject var store: Store
+    @EnvironmentObject var ui: UIState
 
     var body: some View {
         Menu {
-            Button("Export CSV…") { store.exportCSV() }
+            Button("Export CSV…") { ui.openExport() }
                 .keyboardShortcut("e")
             Button("Export This Week…") { store.exportCSV(thisWeekOnly: true) }
             Divider()
