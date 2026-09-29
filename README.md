@@ -4,6 +4,9 @@ Native macOS menu bar app for tracking work hours per project.
 
 Built with SwiftUI (`MenuBarExtra`). Lives only in the menu bar — no Dock icon.
 
+<img width="658" height="746" alt="image" src="https://github.com/user-attachments/assets/6f788117-80e2-4f18-b17c-3fe518b16bf4" />
+
+
 ## Features
 
 - **Live timer** — hero card with project picker, big elapsed time, Recording / Not running status, and Start/Stop
