@@ -289,17 +289,18 @@ final class Store: ObservableObject {
         return ExportRange(start: start, end: end)
     }
 
-    func sessionCount(in range: ExportRange) -> Int {
-        exportRows(in: range).count
+    func sessionCount(in range: ExportRange, projectID: UUID? = nil) -> Int {
+        exportRows(in: range, projectID: projectID).count
     }
 
     /// Sessions (plus in-progress as a synthetic row) whose **start** falls on a local
     /// calendar day in `[range.start, range.end]` inclusive.
-    func exportRows(in range: ExportRange?) -> [WorkSession] {
+    func exportRows(in range: ExportRange?, projectID: UUID? = nil) -> [WorkSession] {
         var rows = data.sessions
         if let r = data.running {
             rows.append(WorkSession(projectID: r.projectID, start: r.start, end: max(now, r.start)))
         }
+        if let projectID { rows = rows.filter { $0.projectID == projectID } }
         guard let range else { return rows.sorted { $0.start < $1.start } }
         let cal = Calendar.current
         let lower = cal.startOfDay(for: range.start)
@@ -327,14 +328,20 @@ final class Store: ObservableObject {
         return "\(f("MMM d", s)) – \(f("MMM d, yyyy", e))"
     }
 
-    func exportLabel(for range: ExportRange?) -> String {
+    func exportLabel(for range: ExportRange?, projectID: UUID? = nil) -> String {
+        let dates: String = rangeOnlyLabel(range, projectID: projectID)
+        if let name = project(projectID)?.name { return "\(name) – \(dates)" }
+        return dates
+    }
+
+    private func rangeOnlyLabel(_ range: ExportRange?, projectID: UUID?) -> String {
         if let range { return Self.rangeLabel(range.start, range.end) }
-        let rows = exportRows(in: nil)
+        let rows = exportRows(in: nil, projectID: projectID)
         guard let first = rows.first?.start, let last = rows.last?.start else { return Self.rangeLabel(now, now) }
         return Self.rangeLabel(first, last)
     }
 
-    func csvString(in range: ExportRange? = nil) -> String {
+    func csvString(in range: ExportRange? = nil, projectID: UUID? = nil) -> String {
         let dayFmt = DateFormatter(); dayFmt.locale = Locale(identifier: "en_US_POSIX"); dayFmt.dateFormat = "EEE, MMM d, yyyy"
         let timeFmt = DateFormatter(); timeFmt.locale = Locale(identifier: "en_US_POSIX"); timeFmt.dateFormat = "h:mm a"
         func esc(_ s: String) -> String {
@@ -344,8 +351,8 @@ final class Store: ObservableObject {
             return s
         }
         func hrs(_ t: TimeInterval) -> String { String(format: "%.2f", t / 3600) }
-        let rows = exportRows(in: range)
-        var lines = [esc("Hours Tracker Export – \(exportLabel(for: range))"), "",
+        let rows = exportRows(in: range, projectID: projectID)
+        var lines = [esc("Hours Tracker Export – \(exportLabel(for: range, projectID: projectID))"), "",
                      "Project,Date,Start,End,Hours"]
         var total: TimeInterval = 0
         var perProject: [String: TimeInterval] = [:]
@@ -359,7 +366,7 @@ final class Store: ObservableObject {
                           timeFmt.string(from: s.end), hrs(s.duration)].joined(separator: ","))
         }
         lines.append("")
-        if order.count > 1 {
+        if projectID == nil && order.count > 1 {
             for n in order { lines.append("\(esc("Subtotal – " + n)),,,,\(hrs(perProject[n]!))") }
         }
         lines.append("Total,,,,\(hrs(total))")
@@ -367,14 +374,14 @@ final class Store: ObservableObject {
     }
 
     /// Save-panel export. Pass a range for filtered export; `thisWeekOnly` is the one-shot shortcut.
-    func exportCSV(range: ExportRange? = nil, thisWeekOnly: Bool = false) {
+    func exportCSV(range: ExportRange? = nil, projectID: UUID? = nil, thisWeekOnly: Bool = false) {
         let resolved: ExportRange?
         if thisWeekOnly {
             resolved = ExportRange(start: startOfWeek, end: now)
         } else {
             resolved = range
         }
-        let label = exportLabel(for: resolved)
+        let label = exportLabel(for: resolved, projectID: projectID)
         let panel = NSSavePanel()
         panel.title = "Export Hours – \(label)"
         panel.prompt = "Export"
@@ -385,7 +392,7 @@ final class Store: ObservableObject {
         panel.level = .floating
         if panel.runModal() == .OK, let url = panel.url {
             do {
-                try csvString(in: resolved).write(to: url, atomically: true, encoding: .utf8)
+                try csvString(in: resolved, projectID: projectID).write(to: url, atomically: true, encoding: .utf8)
             } catch {
                 NSAlert(error: error).runModal()
             }

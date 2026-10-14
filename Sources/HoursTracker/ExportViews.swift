@@ -21,6 +21,7 @@ struct ExportRangeView: View {
     @State private var startDate: Date = Date()
     @State private var endDate: Date = Date()
     @State private var applyingPreset = false
+    @State private var projectID: UUID? = nil
 
     var body: some View {
         VStack(alignment: .leading, spacing: HT.Space.m) {
@@ -32,6 +33,8 @@ struct ExportRangeView: View {
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
+
+            projectRow
 
             presetRow
 
@@ -65,7 +68,7 @@ struct ExportRangeView: View {
                     .keyboardShortcut(.cancelAction)
                 Spacer()
                 Button {
-                    store.exportCSV(range: currentRange)
+                    store.exportCSV(range: currentRange, projectID: projectID)
                 } label: {
                     Label("Export CSV…", systemImage: "square.and.arrow.up")
                 }
@@ -107,6 +110,25 @@ struct ExportRangeView: View {
         }
     }
 
+    private var projectRow: some View {
+        HStack {
+            Text("Project")
+                .font(.caption)
+                .foregroundStyle(.secondary)
+            Spacer()
+            Picker("", selection: $projectID) {
+                Text("All Projects").tag(UUID?.none)
+                Divider()
+                ForEach(store.projects) { p in
+                    Text(p.name).tag(UUID?.some(p.id))
+                }
+            }
+            .labelsHidden()
+            .pickerStyle(.menu)
+            .fixedSize()
+        }
+    }
+
     private func dateRow(title: String, date: Binding<Date>) -> some View {
         HStack {
             Text(title)
@@ -123,7 +145,7 @@ struct ExportRangeView: View {
     }
 
     private var countLabel: String {
-        let n = store.sessionCount(in: currentRange)
+        let n = store.sessionCount(in: currentRange, projectID: projectID)
         return n == 1 ? "1 session" : "\(n) sessions"
     }
 
