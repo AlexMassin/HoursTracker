@@ -310,21 +310,59 @@ final class Store: ObservableObject {
             .sorted { $0.start < $1.start }
     }
 
+    /// Human-readable range label, e.g. "Oct 1–14, 2026", "Sep 28 – Oct 3, 2026", "Oct 14, 2026".
+    static func rangeLabel(_ start: Date, _ end: Date) -> String {
+        let cal = Calendar.current
+        let s = cal.startOfDay(for: min(start, end)), e = cal.startOfDay(for: max(start, end))
+        func f(_ fmt: String, _ d: Date) -> String {
+            let df = DateFormatter(); df.locale = Locale(identifier: "en_US_POSIX"); df.dateFormat = fmt
+            return df.string(from: d)
+        }
+        let sy = cal.component(.year, from: s), ey = cal.component(.year, from: e)
+        if s == e { return f("MMM d, yyyy", s) }
+        if sy != ey { return "\(f("MMM d, yyyy", s)) – \(f("MMM d, yyyy", e))" }
+        if cal.component(.month, from: s) == cal.component(.month, from: e) {
+            return "\(f("MMM d", s))–\(f("d, yyyy", e))"
+        }
+        return "\(f("MMM d", s)) – \(f("MMM d, yyyy", e))"
+    }
+
+    func exportLabel(for range: ExportRange?) -> String {
+        if let range { return Self.rangeLabel(range.start, range.end) }
+        let rows = exportRows(in: nil)
+        guard let first = rows.first?.start, let last = rows.last?.start else { return Self.rangeLabel(now, now) }
+        return Self.rangeLabel(first, last)
+    }
+
     func csvString(in range: ExportRange? = nil) -> String {
-        let iso = ISO8601DateFormatter()
-        iso.formatOptions = [.withInternetDateTime]
-        iso.timeZone = TimeZone.current
+        let dayFmt = DateFormatter(); dayFmt.locale = Locale(identifier: "en_US_POSIX"); dayFmt.dateFormat = "EEE, MMM d, yyyy"
+        let timeFmt = DateFormatter(); timeFmt.locale = Locale(identifier: "en_US_POSIX"); timeFmt.dateFormat = "h:mm a"
         func esc(_ s: String) -> String {
             if s.contains(",") || s.contains("\"") || s.contains("\n") {
                 return "\"" + s.replacingOccurrences(of: "\"", with: "\"\"") + "\""
             }
             return s
         }
-        var lines = ["project,start,end,duration_hours"]
-        for s in exportRows(in: range) {
+        func hrs(_ t: TimeInterval) -> String { String(format: "%.2f", t / 3600) }
+        let rows = exportRows(in: range)
+        var lines = [esc("Hours Tracker Export – \(exportLabel(for: range))"), "",
+                     "Project,Date,Start,End,Hours"]
+        var total: TimeInterval = 0
+        var perProject: [String: TimeInterval] = [:]
+        var order: [String] = []
+        for s in rows {
             let name = project(s.projectID)?.name ?? "Unknown"
-            lines.append("\(esc(name)),\(iso.string(from: s.start)),\(iso.string(from: s.end)),\(String(format: "%.4f", s.duration / 3600))")
+            total += s.duration
+            if perProject[name] == nil { order.append(name) }
+            perProject[name, default: 0] += s.duration
+            lines.append([esc(name), esc(dayFmt.string(from: s.start)), timeFmt.string(from: s.start),
+                          timeFmt.string(from: s.end), hrs(s.duration)].joined(separator: ","))
         }
+        lines.append("")
+        if order.count > 1 {
+            for n in order { lines.append("\(esc("Subtotal – " + n)),,,,\(hrs(perProject[n]!))") }
+        }
+        lines.append("Total,,,,\(hrs(total))")
         return lines.joined(separator: "\n") + "\n"
     }
 
@@ -336,20 +374,12 @@ final class Store: ObservableObject {
         } else {
             resolved = range
         }
+        let label = exportLabel(for: resolved)
         let panel = NSSavePanel()
-        panel.title = thisWeekOnly ? "Export This Week" : "Export Hours"
+        panel.title = "Export Hours – \(label)"
+        panel.prompt = "Export"
         panel.allowedContentTypes = [.commaSeparatedText]
-        let df = DateFormatter()
-        df.dateFormat = "yyyy-MM-dd"
-        if thisWeekOnly {
-            panel.nameFieldStringValue = "hours-week-of-\(df.string(from: startOfWeek)).csv"
-        } else if let resolved {
-            let a = df.string(from: Calendar.current.startOfDay(for: resolved.start))
-            let b = df.string(from: Calendar.current.startOfDay(for: resolved.end))
-            panel.nameFieldStringValue = a == b ? "hours-\(a).csv" : "hours-\(a)_to_\(b).csv"
-        } else {
-            panel.nameFieldStringValue = "hours-\(df.string(from: Date())).csv"
-        }
+        panel.nameFieldStringValue = "Hours Tracker – \(label).csv"
         panel.canCreateDirectories = true
         NSApp.activate(ignoringOtherApps: true)
         panel.level = .floating
